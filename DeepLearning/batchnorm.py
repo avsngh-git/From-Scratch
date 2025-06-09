@@ -1,4 +1,5 @@
 import torch
+from torch import nn
 
 def batch_norm(gamma, beta, x, epsilon, momentum, moving_mean, moving_var):
     """
@@ -22,3 +23,29 @@ def batch_norm(gamma, beta, x, epsilon, momentum, moving_mean, moving_var):
     return Y, moving_mean.detach(), moving_var.detach() # detach to avoid tracking gradients for moving mean and var
 
 
+class BatchNorm(nn.Module):
+    def __init__(self, num_features, num_dims):
+        super().__init__()
+        if num_dims ==2:
+            shape = (1, num_features)  # setup shape for proper broadcasting depending on if its a picture or a normal data
+        else:
+            shape = (1, num_features, 1, 1)
+
+        # initialize the scale and shift parameters to 1 and 0
+        # initialize them as Parameter class to tell pytorch that these are learnable parameters
+        self.gamma = nn.Parameter(torch.ones(shape))
+        self.beta = nn.Parameter(torch.zeros(shape))
+
+        # now initialize buffers for mean and var for use during inference
+        self.moving_mean = torch.zeros(shape)
+        self.moving_var = torch.ones(shape)
+
+    def forward(self, X):
+        #If X is not on the main memory
+        if self.moving_mean.device != X.device:
+            self.moving_mean = self.moving_mean.to(X.device)
+            self.moving_var = self.moving_var.to(X.device)
+
+        # Get the normalized output and save moving_mean and moving_var
+        Y, self.moving_mean, self.moving_var = batch_norm(self.gamma, self.beta, X, 1e-5, 0.9)
+        return Y
