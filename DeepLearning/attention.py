@@ -1,4 +1,5 @@
 import torch
+import math
 from torch import nn
 
 
@@ -26,4 +27,21 @@ def masked_softmax(X, valid_lens):
     X = sequence_mask(X.reshape(-1, shape[-1]), valid_lens, value=-1e6)
     return nn.functional.softmax(X.reshape(shape), dim=1)
 
-    
+
+class DotProductAttention(nn.Module):
+    """Scaled dot product attention with batch matrix multiplication and dropout for regularization"""
+    def __init__(self, dropout):
+        super().__init__()
+        self.dropout = nn.Dropout(dropout)
+
+    # Query shape = (batch_size, no. of queries, d)
+    # Key = (batch_size, #keys, d)
+    # Values = (batch_size, #k-v pairs, value dimension)
+    # valid_lens = (batch_size,) or (batch_size, #queries)
+    def forward(self, queries, keys, values, valid_lens=None):
+        d = queries.dim()
+        scores = torch.bmm(queries, keys.transpose(1,2))/math.sqrt(d) #swapping only last 2 dimensions in transpose
+        self.attention_weights = masked_softmax(scores, valid_lens)
+        return torch.bmm(self.dropout(self.attention_weights), values)
+
+
