@@ -74,6 +74,44 @@ class AdditiveAttention(nn.Module):
         return torch.bmm(self.dropout(self.attention_weights), values)
 
 
+class MultiHeadAttention():
+    def __init__(self, num_hidden, num_heads, dropout, bias=False, **kwargs):
+        self.num_heads = num_heads
+        self.num_hidden = num_hidden
+        self.attention = DotProductAttention(dropout)
+        self.W_q = nn.LazyLinear(num_hidden, bias= False)
+        self.W_k = nn.LazyLinear(num_hidden, bias= False)
+        self.W_v = nn.LazyLinear(num_hidden, bias= False)
+        self.W_o = nn.LazyLinear(num_hidden, bias=False)
+
+    def transpose_qkv(self, X):
+        """Reshape the input tensor to make it ready for multihead attention. Shape goes from (batch_size, no. of queries or key-value pairs,
+        num_hiddens) to (batch_size * num_heads, no. of queries or key-value pairs, num_hiddens / num_heads)"""
+        X= X.reshape(X.shape[0], X.shape[1], self.num_heads, -1  )
+        X=X.permute(0,2,1,3) #changed to order of the dimensions 1 and 2
+        return X.reshape(-1, X.shape[2], X.shape[3]) # does multiplication of the first two dimensions and leaves last 2 unchanged
+    
+    def transpose_output(self, X):
+        """Reverse the operation of transpose_qkv."""
+        X = X.reshape(-1, self.num_heads, X.shape[1], X.shape[2])
+        X = X.permute(0, 2, 1, 3)
+        return X.reshape(X.shape[0], X.shape[1], -1)
+
+    def forward(self, queries, keys, values, valid_lens):
+        queries = self.transpose_qkv(self.W_q(queries))
+        keys = self.transpose_qkv(self.W_k(keys))
+        values = self.transpose_qkv(self.W_v(values))
         
+        if valid_lens is not None: #handle valid lens as before
+            valid_lens=torch.repeat_interleave(valid_lens, repeats=self.num_heads, dim=0)
+        
+        output = self.attention(queries, keys, values, valid_lens) #calculate dot product attention
+        output_concat = self.transpose_output(output) # reverse the transformation for multi head attention
+        return self.W_o(output_concat) # return the output but mat multiplied with W_o weights
+    
+
+            
+
+
 
 
