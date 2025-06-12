@@ -74,8 +74,9 @@ class AdditiveAttention(nn.Module):
         return torch.bmm(self.dropout(self.attention_weights), values)
 
 
-class MultiHeadAttention():
+class MultiHeadAttention(nn.Module):
     def __init__(self, num_hidden, num_heads, dropout, bias=False, **kwargs):
+        super().__init__()
         self.num_heads = num_heads
         self.num_hidden = num_hidden
         self.attention = DotProductAttention(dropout)
@@ -109,6 +110,26 @@ class MultiHeadAttention():
         output_concat = self.transpose_output(output) # reverse the transformation for multi head attention
         return self.W_o(output_concat) # return the output but mat multiplied with W_o weights
     
+class PositionalEncoding(nn.Module):
+    """Positional encoding class using alternating sines and cosines to create unique positional encoding for each pos"""
+    def __init__(self, num_hiddens, dropout, max_length = 1000):
+        super().__init__()
+        self.dropout = nn.Dropout(dropout)
+        #create proper shaped Positional encoding tensor
+        self.P = torch.zeros((1, max_length, num_hiddens))
+        # Define pos encoding math
+        X = torch.arange(max_length, 
+                         dtype=torch.float32).reshape(-1,1)/torch.pow(10000, torch.arange(0, num_hiddens, 2, 
+                                                                                          dtype=torch.float32)/num_hiddens)
+        self.P[:,:,0::2]= torch.sin(X)
+        self.P[:,:,1::2]= torch.cos(X)
+
+    def forward(self, X):
+        X=X+self.P[:,:X.shape[1],:].to(X.device)
+        return self.dropout(X)
+    
+
+
 
             
 
