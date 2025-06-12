@@ -45,3 +45,35 @@ class DotProductAttention(nn.Module):
         return torch.bmm(self.dropout(self.attention_weights), values)
 
 
+
+class AdditiveAttention(nn.Module):
+    """ Additive attention"""
+    def __init__(self, num_hidden, dropout):
+        self.W_q = nn.LazyLinear(num_hidden, bias=False)
+        self.W_k = nn.LazyLinear(num_hidden, bias=False)
+        self.W_v = nn.LazyLinear(1, bias=False)
+        self.dropout = nn.Dropout(dropout)
+
+
+    def forward(self, queries, keys, values, valid_lens):
+        #mat mul with weight matrices to get the query and key vectors in same dimensions for addition
+        queries, keys = self.W_q(queries), self.W_k(keys)
+
+        #queries.shape = (batch, no. of queries, dimensions of the query)
+        # keys.shape = (batch, no. of keys, dimensions of the keys)
+        # dimensions of keys and queries are the same after multiplications with W but
+        # no. of keys and no. of queries fall in the same dim, we dont want to add these but concatenate these
+        # thus we add 1 dimension in keys and queries each using unsqueeze and then add
+
+        summed = queries.unsqueeze(2) + keys.unsqueeze(1)
+        summed = torch.tanh(summed)
+        scores = self.W_v(summed).squeeze(-1) #squeeze(-1) removes the last dimension if it is of size 1
+        # after mat mul with W_v and squeeze of last dim teh shape is (batch, no. of queries, no. of key value pairs)
+
+        self.attention_weights = masked_softmax(scores, valid_lens)
+        return torch.bmm(self.dropout(self.attention_weights), values)
+
+
+        
+
+
